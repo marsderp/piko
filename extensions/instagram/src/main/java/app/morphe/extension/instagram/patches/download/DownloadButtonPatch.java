@@ -359,6 +359,17 @@ public class DownloadButtonPatch {
     }
 
     private static void place(Surface surface, View anchor, View unit, Axis axis) {
+        try {
+            placeUnchecked(surface, anchor, unit, axis);
+        } catch (Exception e) {
+            // Never let one anchor stop the scan of the others.
+            FAILED_ANCHORS.add(anchor);
+            Logger.printInfo(() -> "DownloadButtonPatch place failure: " + e);
+            showDebugReport(anchor.getContext(), "Download button place failure: " + e, e);
+        }
+    }
+
+    private static void placeUnchecked(Surface surface, View anchor, View unit, Axis axis) {
         if (OVERLAYS.containsKey(anchor) || FAILED_ANCHORS.contains(anchor)) return;
 
         ViewParent viewParent = unit.getParent();
@@ -372,13 +383,19 @@ public class DownloadButtonPatch {
 
         ImageView button = createButton(parent.getContext(), surface, anchor);
         try {
-            addToParent(parent, button, surface, unit, axis, width, height);
-            return;
+            if (addToParent(parent, button, surface, unit, axis, width, height)) return;
         } catch (Exception e) {
-            // Some of Instagram's containers do not accept extra children.
-            parent.removeView(button);
+            // Some of Instagram's containers do not accept extra children. Some (like AdapterView)
+            // also throw on removeView, so only remove the button if it was actually added.
+            if (button.getParent() == parent) {
+                try {
+                    parent.removeView(button);
+                } catch (Exception ignored) {
+                }
+            }
             reportFailure("in row", parent, e);
         }
+        if (button.getParent() != null) return;
 
         try {
             addAsOverlay(button, surface, anchor, axis, width, height);
@@ -388,8 +405,9 @@ public class DownloadButtonPatch {
         }
     }
 
-    private static void addToParent(ViewGroup parent, ImageView button, Surface surface, View unit,
-                                    Axis axis, int width, int height) {
+    // Returns false when the parent is not a layout the button can safely join.
+    private static boolean addToParent(ViewGroup parent, ImageView button, Surface surface, View unit,
+                                       Axis axis, int width, int height) {
         int index = parent.indexOfChild(unit) + 1;
 
         boolean linear = parent instanceof LinearLayout
@@ -400,11 +418,11 @@ public class DownloadButtonPatch {
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, height);
             params.gravity = android.view.Gravity.CENTER;
             parent.addView(button, index, params);
-            return;
+            return true;
         }
         if (!(parent instanceof android.widget.FrameLayout || parent instanceof android.widget.RelativeLayout
                 || parent.getClass().getName().endsWith("ConstraintLayout"))) {
-            throw new IllegalStateException("unsupported parent");
+            return false;
         }
 
         // Take the unit's own params so the button sits where the unit does, then shift it over.
@@ -414,6 +432,7 @@ public class DownloadButtonPatch {
         button.setTranslationX(offsetX(surface, axis, unit.getWidth()));
         button.setTranslationY(offsetY(surface, axis, unit.getHeight(), height));
         parent.addView(button, index, params);
+        return true;
     }
 
     private static int offsetX(Surface surface, Axis axis, int unitWidth) {
