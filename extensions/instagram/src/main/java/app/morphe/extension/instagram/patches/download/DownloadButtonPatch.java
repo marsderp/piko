@@ -356,11 +356,16 @@ public class DownloadButtonPatch {
         return best;
     }
 
-    // One button per reel: skips the save button while another reels button is fully on screen.
+    // Only one reels button exists at a time. It moves to the reel on screen once the previous one is gone,
+    // so scrolling through reels does not leave a button behind on every page.
     private static void placeReels(View save, View unit) {
-        for (Overlay overlay : OVERLAY_LIST) {
+        for (int i = OVERLAY_LIST.size() - 1; i >= 0; i--) {
+            Overlay overlay = OVERLAY_LIST.get(i);
+            if (overlay.surface != Surface.REELS) continue;
             View other = overlay.anchor.get();
-            if (overlay.surface == Surface.REELS && other != null && other != save && isFullyVisible(other)) return;
+            if (other == save) return;
+            if (other != null && isFullyVisible(other)) return;
+            removeOverlay(overlay, i);
         }
         place(Surface.REELS, save, unit, Axis.VERTICAL);
 
@@ -729,16 +734,21 @@ public class DownloadButtonPatch {
         }
     }
 
+    private static void removeOverlay(Overlay overlay, int index) {
+        ViewParent host = overlay.button.getParent();
+        if (host instanceof ViewGroup) ((ViewGroup) host).removeView(overlay.button);
+        applyShift(overlay, false);
+        View anchor = overlay.anchor.get();
+        if (anchor != null) OVERLAYS.remove(anchor);
+        OVERLAY_LIST.remove(index);
+    }
+
     private static void updateOverlays() {
         for (int i = OVERLAY_LIST.size() - 1; i >= 0; i--) {
             Overlay overlay = OVERLAY_LIST.get(i);
             View anchor = overlay.anchor.get();
             if (anchor == null || !overlay.button.isAttachedToWindow()) {
-                ViewParent host = overlay.button.getParent();
-                if (host instanceof ViewGroup) ((ViewGroup) host).removeView(overlay.button);
-                applyShift(overlay, false);
-                if (anchor != null) OVERLAYS.remove(anchor);
-                OVERLAY_LIST.remove(i);
+                removeOverlay(overlay, i);
                 continue;
             }
             positionOverlay(overlay);
@@ -1033,16 +1043,72 @@ public class DownloadButtonPatch {
 
         Map<Object, Boolean> visited = new IdentityHashMap<>();
         UserSession[] userSession = new UserSession[1];
-        Object result = null;
+        // Several media can be reachable (a reels page can hold controllers of the pages next to it),
+        // so collect a few and keep the one whose author is shown on the same page.
+        List<Object> candidates = new ArrayList<>();
         for (Object seed : seeds) {
-            result = searchFrom(seed, media, reelItem, visited, userSession);
-            if (result != null) break;
+            Object found = searchFrom(seed, media, reelItem, visited, userSession);
+            if (found != null && !containsSame(candidates, found)) candidates.add(found);
+            if (candidates.size() >= MAX_CANDIDATES) break;
         }
+        Object result = pickShownMedia(candidates, anchor, userSession[0]);
 
         if (result == null && Pref.pikoDebug()) {
             Logger.printInfo(() -> "DownloadButtonPatch no media, seeds=" + seeds.size() + " visited=" + visited.size());
         }
         return new Object[]{result, userSession[0]};
+    }
+
+    private static final int MAX_CANDIDATES = 6;
+
+    private static boolean containsSame(List<Object> list, Object obj) {
+        for (Object item : list) {
+            if (item == obj) return true;
+        }
+        return false;
+    }
+
+    private static Object pickShownMedia(List<Object> candidates, View anchor, UserSession userSession) {
+        if (candidates.isEmpty()) return null;
+        if (candidates.size() == 1) return candidates.get(0);
+
+        Set<String> texts = new java.util.HashSet<>();
+        collectTexts(pageOf(anchor), 0, texts);
+        for (Object candidate : candidates) {
+            try {
+                String username = new MediaData(candidate, userSession).getUserData().getUsername();
+                if (username != null && texts.contains(username.toLowerCase())) return candidate;
+            } catch (Exception ignored) {
+            }
+        }
+        return candidates.get(0);
+    }
+
+    // The item of the list (feed row or reels page) that holds the view.
+    private static View pageOf(View view) {
+        View current = view;
+        while (current.getParent() instanceof View && !isListView((View) current.getParent())) {
+            current = (View) current.getParent();
+        }
+        return current;
+    }
+
+    private static void collectTexts(View view, int depth, Set<String> out) {
+        if (depth > 25 || out.size() > 300) return;
+        if (view instanceof android.widget.TextView) {
+            CharSequence text = ((android.widget.TextView) view).getText();
+            if (text != null && text.length() > 0) {
+                // Usernames can carry a verified badge or a separator after them.
+                String value = text.toString().trim().toLowerCase();
+                out.add(value);
+                int space = value.indexOf(' ');
+                if (space > 0) out.add(value.substring(0, space));
+            }
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) collectTexts(group.getChildAt(i), depth + 1, out);
+        }
     }
 
     private static boolean isListView(View view) {
