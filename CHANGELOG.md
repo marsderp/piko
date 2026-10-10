@@ -1,3 +1,5 @@
+## [3.10.1](https://github.com/marsderp/piko/compare/v3.10.0...v3.10.1) (2026-10-10)
+
 ## [3.10.0](https://github.com/marsderp/piko/compare/v3.9.0...v3.10.0) (2026-10-10)
 
 ### ✨ New Features

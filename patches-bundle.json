@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-10T15:04:15",
-  "description": "## [3.10.0](https://github.com/marsderp/piko/compare/v3.9.0...v3.10.0) (2026-10-10)\n\n### ✨ New Features\n\n* **Instagram:** Add one tap download button on posts, reels and stories ([2c089b6](https://github.com/marsderp/piko/commit/2c089b69196f894d145d8739aa46eadf9de1f047))",
-  "download_url": "https://github.com/marsderp/piko/releases/download/v3.10.0/patches-3.10.0.mpp",
-  "signature_download_url": "https://github.com/marsderp/piko/releases/download/v3.10.0/patches-3.10.0.mpp.asc",
-  "version": "3.10.0"
+  "created_at": "2026-10-10T15:09:54",
+  "description": "## [3.10.1](https://github.com/marsderp/piko/compare/v3.10.0...v3.10.1) (2026-10-10)",
+  "download_url": "https://github.com/marsderp/piko/releases/download/v3.10.1/patches-3.10.1.mpp",
+  "signature_download_url": "https://github.com/marsderp/piko/releases/download/v3.10.1/patches-3.10.1.mpp.asc",
+  "version": "3.10.1"
 }
