@@ -214,6 +214,8 @@ public class SettingsStatus {
     //Download section.
     public static boolean downloadMedia = false;
     public static void downloadMedia() {downloadMedia = true;}
+    public static boolean downloadButton = false;
+    public static void downloadButton() { downloadButton = true; }
     public static boolean downloadVoiceMessage = false;
     public static void downloadVoiceMessage() { downloadVoiceMessage = true; }
     public static boolean downloadWithExternalDownloader = false;
@@ -236,6 +238,7 @@ public class SettingsStatus {
         FLAGS.put(str("piko_category_hide_navigation_buttons"),SettingsStatus.hideNavigationButtons);
 
         FLAGS.put(str("piko_category_download_media"),SettingsStatus.downloadMedia);
+        FLAGS.put(str("piko_download_button"),SettingsStatus.downloadButton);
         FLAGS.put(str("piko_download_voice_media"),SettingsStatus.downloadVoiceMessage);
         FLAGS.put(str("piko_download_with_external_downloader"),SettingsStatus.downloadWithExternalDownloader);
         FLAGS.put(str("piko_more_profile_options"),SettingsStatus.moreOptionsOnProfile);
