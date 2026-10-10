@@ -1,3 +1,9 @@
+## [3.10.5](https://github.com/marsderp/piko/compare/v3.10.4...v3.10.5) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** Stop a rejected row from aborting the scan ([9e84700](https://github.com/marsderp/piko/commit/9e84700df6fddda3087778fd3de1952295453c7a))
+
 ## [3.10.4](https://github.com/marsderp/piko/compare/v3.10.3...v3.10.4) (2026-10-10)
 
 ### 🐛 Bug Fixes
