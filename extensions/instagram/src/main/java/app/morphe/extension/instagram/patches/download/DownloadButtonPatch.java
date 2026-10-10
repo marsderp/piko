@@ -512,8 +512,10 @@ public class DownloadButtonPatch {
         ImageView button = createButton(parent.getContext(), surface, anchor);
         try {
             // Litho hosts lay out and draw their own content, so an added child would overlap it.
+            // Feed rows can keep the share count in a separate view after share, so a button added to
+            // the row lands between them. The overlay measures the drawn count instead.
             boolean litho = parent.getClass().getName().contains("ComponentHost");
-            if (!litho && addToParent(parent, button, surface, unit, axis, width, height)) return;
+            if (!litho && surface != Surface.FEED && addToParent(parent, button, surface, unit, axis, width, height)) return;
         } catch (Exception e) {
             // Some of Instagram's containers do not accept extra children. Some (like AdapterView)
             // also throw on removeView, so only remove the button if it was actually added.
