@@ -1,3 +1,10 @@
+## [3.10.7](https://github.com/marsderp/piko/compare/v3.10.6...v3.10.7) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** feed spacing and one reels button in line between share and save ([38c9114](https://github.com/marsderp/piko/commit/38c9114fdaa01162e7330e3e59bf3fe207d1c63b))
+* **Instagram - Download button:** one reels button at a time and pick the media of the reel on screen ([c3f3ab7](https://github.com/marsderp/piko/commit/c3f3ab7aa4fe83394448dacbf8b20d65e1dc7651))
+
 ## [3.10.6](https://github.com/marsderp/piko/compare/v3.10.5...v3.10.6) (2026-10-10)
 
 ### 🐛 Bug Fixes
