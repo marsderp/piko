@@ -108,9 +108,10 @@ public class DownloadButtonPatch {
         return Pref.enableDownload() && Pref.downloadButton();
     }
 
+    // Called from Application.onCreate, which runs before piko's settings status is loaded,
+    // so whether the button is enabled is only checked once an activity resumes.
     public static void init(Context context) {
         try {
-            if (!isEnabled()) return;
             Application application = (Application) context.getApplicationContext();
             application.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
                 @Override
@@ -143,7 +144,7 @@ public class DownloadButtonPatch {
 
     private static void attach(Activity activity) {
         try {
-            if (activity.getWindow() == null) return;
+            if (activity.getWindow() == null || !isEnabled()) return;
             View root = activity.getWindow().getDecorView();
             if (!ATTACHED_ROOTS.add(root)) return;
 
@@ -172,10 +173,16 @@ public class DownloadButtonPatch {
         return context.getResources().getIdentifier(name, "id", context.getPackageName());
     }
 
+    // Names of the ids that exist in this Instagram version, shown in debug mode.
+    private static final List<String> RESOLVED_NAMES = new ArrayList<>();
+
     private static void putIds(Context context, Map<Integer, Surface> map, String[] names, Surface surface) {
         for (String name : names) {
             int id = getId(context, name);
-            if (id != 0) map.put(id, surface);
+            if (id != 0) {
+                map.put(id, surface);
+                RESOLVED_NAMES.add(name);
+            }
         }
     }
 
@@ -195,13 +202,15 @@ public class DownloadButtonPatch {
         putIds(context, generic, REELS_GENERIC_ANCHORS, Surface.REELS);
 
         reelsContainerId = getId(context, REELS_CONTAINER);
+        if (reelsContainerId != 0) RESOLVED_NAMES.add(REELS_CONTAINER);
         reelsGenericIds = generic.keySet();
         fallbackIds = fallbacks;
         anchorIds = anchors;
 
         if (Pref.pikoDebug()) {
-            Logger.printInfo(() -> "DownloadButtonPatch anchors=" + anchors.size()
-                    + " fallbacks=" + fallbacks.size() + " reelsContainer=" + reelsContainerId);
+            String message = "Download button ids: " + (RESOLVED_NAMES.isEmpty() ? "none" : String.join(", ", RESOLVED_NAMES));
+            Logger.printInfo(() -> message);
+            Utils.showToastLong(message);
         }
     }
 
