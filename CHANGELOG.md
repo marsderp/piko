@@ -1,3 +1,9 @@
+## [3.11.1](https://github.com/marsderp/piko/compare/v3.11.0...v3.11.1) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** place the feed button after the share count drawn by Litho ([800411e](https://github.com/marsderp/piko/commit/800411e8dbb72f130621e77d6bb0fdafe76147f8))
+
 ## [3.11.0](https://github.com/marsderp/piko/compare/v3.10.9...v3.11.0) (2026-10-10)
 
 ### 🐛 Bug Fixes
