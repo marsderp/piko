@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-10T17:50:41",
-  "description": "## [3.11.1](https://github.com/marsderp/piko/compare/v3.11.0...v3.11.1) (2026-10-10)\n\n### 🐛 Bug Fixes\n\n* **Instagram - Download button:** place the feed button after the share count drawn by Litho ([800411e](https://github.com/marsderp/piko/commit/800411e8dbb72f130621e77d6bb0fdafe76147f8))",
-  "download_url": "https://github.com/marsderp/piko/releases/download/v3.11.1/patches-3.11.1.mpp",
-  "signature_download_url": "https://github.com/marsderp/piko/releases/download/v3.11.1/patches-3.11.1.mpp.asc",
-  "version": "3.11.1"
+  "created_at": "2026-10-10T18:08:14",
+  "description": "## [3.11.2](https://github.com/marsderp/piko/compare/v3.11.1...v3.11.2) (2026-10-10)\n\n### 🐛 Bug Fixes\n\n* **Instagram:** place the feed download button after the share count ([b5e7002](https://github.com/marsderp/piko/commit/b5e700242a09f43c07341853d29f419cef8fd1e0))",
+  "download_url": "https://github.com/marsderp/piko/releases/download/v3.11.2/patches-3.11.2.mpp",
+  "signature_download_url": "https://github.com/marsderp/piko/releases/download/v3.11.2/patches-3.11.2.mpp.asc",
+  "version": "3.11.2"
 }
