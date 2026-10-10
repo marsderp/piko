@@ -263,7 +263,7 @@ public class DownloadButtonPatch {
                 }
             }
 
-            String label = rightColumnLabel(view, rootWidth);
+            String label = rightColumnLabel(view, rootWidth, root.getHeight());
             if (label != null && !anchorIds.containsKey(id)) {
                 if (isSaveLabel(label)) {
                     reelsSaves.add(view);
@@ -281,13 +281,23 @@ public class DownloadButtonPatch {
             }
         }
 
-        for (View anchor : anchors) {
-            Surface surface = anchorIds.get(anchor.getId());
-            Axis axis = surface == Surface.REELS ? Axis.VERTICAL : Axis.HORIZONTAL;
-            place(surface, anchor, unitOf(anchor, null), axis);
+        // The labelled save button goes first, as it is the most reliable match on reels.
+        boolean reelsFound = false;
+        View labelledSave = pickReelsSave(reelsSaves, reelsLike);
+        if (labelledSave != null) {
+            reelsFound = true;
+            if (!isNearOverlay(labelledSave)) placeReels(labelledSave, unitOf(labelledSave, null));
         }
 
-        boolean reelsFound = false;
+        for (View anchor : anchors) {
+            Surface surface = anchorIds.get(anchor.getId());
+            if (surface == Surface.REELS) {
+                placeReels(anchor, unitOf(anchor, null));
+                continue;
+            }
+            place(surface, anchor, unitOf(anchor, null), Axis.HORIZONTAL);
+        }
+
         for (View anchor : anchors) {
             if (anchorIds.get(anchor.getId()) == Surface.REELS) reelsFound = true;
         }
@@ -300,14 +310,8 @@ public class DownloadButtonPatch {
             View save = findReelsSave(container);
             if (save != null) {
                 reelsFound = true;
-                place(Surface.REELS, save, unitOf(save, container), Axis.VERTICAL);
+                placeReels(save, unitOf(save, container));
             }
-        }
-
-        for (View save : reelsSaves) {
-            reelsFound = true;
-            if (isNearOverlay(save)) continue;
-            place(Surface.REELS, save, unitOf(save, null), Axis.VERTICAL);
         }
 
         if (!reelsFound && reelsLike != null && Pref.pikoDebug() && !reelsReportShown) {
@@ -331,16 +335,56 @@ public class DownloadButtonPatch {
     }
 
     private static boolean reelsReportShown;
+    private static boolean reelsTreeShown;
+
+    // The best save button among the labelled candidates: the plain "Save" label first, and the size of the like button.
+    private static View pickReelsSave(List<View> candidates, View like) {
+        View best = null;
+        int bestScore = -1;
+        for (View view : candidates) {
+            if (like != null) {
+                float ratio = view.getWidth() / (float) Math.max(1, like.getWidth());
+                if (ratio < 0.6f || ratio > 1.6f) continue;
+            }
+            String label = view.getContentDescription().toString().toLowerCase();
+            int score = label.equals("save") || label.equals("saved") ? 3 : label.startsWith("save") ? 2 : 1;
+            if (score > bestScore) {
+                best = view;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    // One button per reel: skips the save button while another reels button is fully on screen.
+    private static void placeReels(View save, View unit) {
+        for (Overlay overlay : OVERLAY_LIST) {
+            View other = overlay.anchor.get();
+            if (overlay.surface == Surface.REELS && other != null && other != save && isFullyVisible(other)) return;
+        }
+        place(Surface.REELS, save, unit, Axis.VERTICAL);
+
+        if (Pref.pikoDebug() && !reelsTreeShown && OVERLAYS.containsKey(save)) {
+            reelsTreeShown = true;
+            showDebugReport(save.getContext(), "Download button: reels column (debug info, nothing failed).\n\n"
+                    + describeTree(ancestor(save, 3)), null);
+        }
+    }
 
     // Lower case content description of a small button on the right edge of the screen outside feed rows, else null.
-    private static String rightColumnLabel(View view, int rootWidth) {
+    private static String rightColumnLabel(View view, int rootWidth, int rootHeight) {
+        // Count labels like "35.4K saves" are not buttons.
+        if (view instanceof android.widget.TextView) return null;
         CharSequence description = view.getContentDescription();
         if (description == null || description.length() == 0 || rootWidth <= 0) return null;
         int width = view.getWidth();
         int height = view.getHeight();
         if (width <= 0 || height <= 0 || width > rootWidth / 4 || height > rootWidth / 4) return null;
         view.getLocationInWindow(LABEL_LOCATION);
-        if (LABEL_LOCATION[0] + width / 2 < rootWidth * 3 / 4) return null;
+        int centerX = LABEL_LOCATION[0] + width / 2;
+        int centerY = LABEL_LOCATION[1] + height / 2;
+        // Only the reel on screen, not the pages next to it.
+        if (centerX < rootWidth * 3 / 4 || centerX > rootWidth || centerY < 0 || centerY > rootHeight) return null;
         if (inFeedRow(view)) return null;
         return description.toString().toLowerCase();
     }
@@ -519,6 +563,10 @@ public class DownloadButtonPatch {
         int width = anchor.getWidth();
         int height = anchor.getHeight();
         if (width <= 0 || height <= 0) return;
+        if (surface == Surface.REELS) {
+            // The save view can include its count, so keep the button the size of the icon.
+            width = height = Math.min(width, height);
+        }
 
         ImageView button = createButton(parent.getContext(), surface, anchor);
         try {
@@ -547,7 +595,8 @@ public class DownloadButtonPatch {
     // Returns false when the parent is not a layout the button can safely join.
     private static boolean addToParent(ViewGroup parent, ImageView button, Surface surface, View unit,
                                        Axis axis, int width, int height) {
-        int index = parent.indexOfChild(unit) + 1;
+        // Reels: between share and save, so before the save button.
+        int index = parent.indexOfChild(unit) + (surface == Surface.REELS ? 0 : 1);
 
         boolean linear = parent instanceof LinearLayout
                 && ((LinearLayout) parent).getOrientation()
@@ -561,6 +610,7 @@ public class DownloadButtonPatch {
                 }
             }
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, height);
+            if (surface == Surface.FEED) params.leftMargin = feedGap(parent.getContext());
             params.gravity = android.view.Gravity.CENTER;
             parent.addView(button, index, params);
             return true;
@@ -574,7 +624,8 @@ public class DownloadButtonPatch {
         ViewGroup.LayoutParams params = copyLayoutParams(unit.getLayoutParams());
         params.width = width;
         params.height = height;
-        button.setTranslationX(offsetX(surface, axis, unit.getWidth()) + labelExtent(unit, surface, axis, Axis.HORIZONTAL));
+        button.setTranslationX(offsetX(surface, axis, unit.getWidth()) + labelExtent(unit, surface, axis, Axis.HORIZONTAL)
+                + (surface == Surface.FEED ? feedGap(parent.getContext()) : 0));
         button.setTranslationY(offsetY(surface, axis, unit.getHeight(), height) + labelExtent(unit, surface, axis, Axis.VERTICAL));
         parent.addView(button, index, params);
         return true;
@@ -586,6 +637,11 @@ public class DownloadButtonPatch {
         unit.getLocationInWindow(LOCATION);
         int end = direction == Axis.HORIZONTAL ? LOCATION[0] + unit.getWidth() : LOCATION[1] + unit.getHeight();
         return Math.max(0, trailingEdge(unit, direction) - end);
+    }
+
+    // Space between share (or its count) and the download button on feed posts.
+    private static int feedGap(Context context) {
+        return (int) (10 * context.getResources().getDisplayMetrics().density);
     }
 
     private static int offsetX(Surface surface, Axis axis, int unitWidth) {
@@ -603,6 +659,10 @@ public class DownloadButtonPatch {
         final ImageView button;
         final Surface surface;
         final Axis axis;
+        // Reels: the buttons above save, moved up by `shift` to make room for the download button.
+        final List<java.lang.ref.WeakReference<View>> shifted = new ArrayList<>();
+        java.lang.ref.WeakReference<View> unit;
+        int shift;
 
         Overlay(View anchor, ImageView button, Surface surface, Axis axis) {
             this.anchor = new java.lang.ref.WeakReference<>(anchor);
@@ -629,9 +689,44 @@ public class DownloadButtonPatch {
         host.addView(button, new android.widget.FrameLayout.LayoutParams(width, height));
 
         Overlay overlay = new Overlay(anchor, button, surface, axis);
+        if (surface == Surface.REELS) makeRoomAbove(overlay, unitOf(anchor, null), height);
         OVERLAYS.put(anchor, overlay);
         OVERLAY_LIST.add(overlay);
         positionOverlay(overlay);
+    }
+
+    // Moves the buttons above save (like, comment, share) up, so the download button fits in line between share and save.
+    private static void makeRoomAbove(Overlay overlay, View unit, int size) {
+        if (!(unit.getParent() instanceof ViewGroup)) return;
+        ViewGroup column = (ViewGroup) unit.getParent();
+        int gap = -1;
+        List<View> above = new ArrayList<>();
+        for (int i = 0; i < column.getChildCount(); i++) {
+            View child = column.getChildAt(i);
+            if (child == unit || child.getVisibility() != View.VISIBLE || BUTTON_TAG.equals(child.getTag())) continue;
+            boolean sameColumn = child.getLeft() < unit.getRight() && child.getRight() > unit.getLeft();
+            boolean small = child.getHeight() <= unit.getHeight() * 3 && child.getWidth() <= unit.getWidth() * 3;
+            if (!sameColumn || !small || child.getBottom() > unit.getTop() + 1) continue;
+            above.add(child);
+            int childGap = unit.getTop() - child.getBottom();
+            if (gap < 0 || childGap < gap) gap = childGap;
+        }
+        if (above.isEmpty()) return;
+
+        overlay.shift = size + Math.max(0, gap);
+        overlay.unit = new java.lang.ref.WeakReference<>(unit);
+        for (View view : above) {
+            overlay.shifted.add(new java.lang.ref.WeakReference<>(view));
+        }
+    }
+
+    private static void applyShift(Overlay overlay, boolean active) {
+        for (java.lang.ref.WeakReference<View> ref : overlay.shifted) {
+            View view = ref.get();
+            if (view == null) continue;
+            float target = active ? -overlay.shift : 0;
+            if (view.getTranslationY() != target) view.setTranslationY(target);
+        }
     }
 
     private static void updateOverlays() {
@@ -641,6 +736,7 @@ public class DownloadButtonPatch {
             if (anchor == null || !overlay.button.isAttachedToWindow()) {
                 ViewParent host = overlay.button.getParent();
                 if (host instanceof ViewGroup) ((ViewGroup) host).removeView(overlay.button);
+                applyShift(overlay, false);
                 if (anchor != null) OVERLAYS.remove(anchor);
                 OVERLAY_LIST.remove(i);
                 continue;
@@ -655,10 +751,7 @@ public class DownloadButtonPatch {
         if (anchor == null || host == null) return;
 
         // Only while the anchor is fully on screen, so the button never floats over the tab bar or headers.
-        boolean shown = anchor.isAttachedToWindow() && anchor.isShown() && anchor.getWidth() > 0
-                && anchor.getRootView() == host.getRootView()
-                && anchor.getGlobalVisibleRect(VISIBLE_RECT)
-                && VISIBLE_RECT.height() == anchor.getHeight() && VISIBLE_RECT.width() == anchor.getWidth();
+        boolean shown = anchor.getRootView() == host.getRootView() && isFullyVisible(anchor);
         int visibility = shown ? View.VISIBLE : View.GONE;
         if (overlay.button.getVisibility() != visibility) overlay.button.setVisibility(visibility);
         if (!shown) return;
@@ -676,8 +769,16 @@ public class DownloadButtonPatch {
             y = top - height;
         } else if (overlay.axis == Axis.HORIZONTAL) {
             // After the count label too, like the share count of a feed post.
-            x = trailingEdge(anchor, Axis.HORIZONTAL);
+            x = trailingEdge(anchor, Axis.HORIZONTAL) + (overlay.surface == Surface.FEED ? feedGap(anchor.getContext()) : 0);
             y = top;
+        } else if (overlay.unit != null && overlay.unit.get() != null) {
+            // In line between share and save, in the room made above save.
+            View unit = overlay.unit.get();
+            applyShift(overlay, true);
+            unit.getLocationInWindow(EDGE_LOCATION);
+            int size = overlay.button.getLayoutParams().width;
+            x = EDGE_LOCATION[0] + (unit.getWidth() - size) / 2f;
+            y = EDGE_LOCATION[1] - overlay.shift;
         } else {
             int bottom = trailingEdge(anchor, Axis.VERTICAL);
             if (blockedBelow(anchor, left, bottom, width, height)) {
@@ -765,6 +866,12 @@ public class DownloadButtonPatch {
             current = parent;
         }
         return false;
+    }
+
+    private static boolean isFullyVisible(View view) {
+        return view.isAttachedToWindow() && view.isShown() && view.getWidth() > 0
+                && view.getGlobalVisibleRect(VISIBLE_RECT)
+                && VISIBLE_RECT.height() == view.getHeight() && VISIBLE_RECT.width() == view.getWidth();
     }
 
     private static void reportFailure(String mode, ViewGroup parent, Exception e) {
