@@ -69,7 +69,7 @@ To patch with Twitter/X version 11.88 to 12.4, you must include patches from ano
 ## ⚙️ Patch Details
 
 <!-- PATCHES_START -->
-> **[v3.9.0](https://github.com/crimera/piko/releases/tag/v3.9.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;133 patches total
+> **[v3.10.0](https://github.com/marsderp/piko/releases/tag/v3.10.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;134 patches total
 <details>
 <summary>📦 Twitter&nbsp;&nbsp;•&nbsp;&nbsp;74 patches</summary>
 <br>
@@ -159,7 +159,7 @@ To patch with Twitter/X version 11.88 to 12.4, you must include patches from ano
 </details>
 
 <details>
-<summary>📦 Instagram&nbsp;&nbsp;•&nbsp;&nbsp;59 patches</summary>
+<summary>📦 Instagram&nbsp;&nbsp;•&nbsp;&nbsp;60 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -193,6 +193,7 @@ To patch with Twitter/X version 11.88 to 12.4, you must include patches from ano
 | [Disable swipe to create](#disable-swipe-to-create) | Prevents opening the creation screen by swiping right on the home tab. |  |
 | [Disable typing status](#disable-typing-status) |  |  |
 | [Disable video autoplay](#disable-video-autoplay) |  |  |
+| [Download button](#download-button) | Adds a one tap download button beside share on posts and stories, and below save on reels. Albums download every item. |  |
 | [Download media](#download-media) | Adds ability to download posts, reels, stories and highlights |  |
 | [Download voice message](#download-voice-message) | Enables ability to download voice messages |  |
 | [External downloader](#external-downloader) | Adds support to share post links directly to external downloader |  |

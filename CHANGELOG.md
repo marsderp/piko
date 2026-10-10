@@ -1,3 +1,9 @@
+## [3.10.0](https://github.com/marsderp/piko/compare/v3.9.0...v3.10.0) (2026-10-10)
+
+### ✨ New Features
+
+* **Instagram:** Add one tap download button on posts, reels and stories ([2c089b6](https://github.com/marsderp/piko/commit/2c089b69196f894d145d8739aa46eadf9de1f047))
+
 ## [3.9.0](https://github.com/crimera/piko/compare/v3.8.0...v3.9.0) (2026-08-31)
 
 ### 🐛 Bug Fixes
