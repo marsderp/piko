@@ -1,3 +1,9 @@
+## [3.10.6](https://github.com/marsderp/piko/compare/v3.10.5...v3.10.6) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** place after count labels and find the reels save button by label ([e15bc52](https://github.com/marsderp/piko/commit/e15bc52c52cd007b180962541f2a528aae45e8af))
+
 ## [3.10.5](https://github.com/marsderp/piko/compare/v3.10.4...v3.10.5) (2026-10-10)
 
 ### 🐛 Bug Fixes
