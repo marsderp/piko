@@ -1,3 +1,9 @@
+## [3.10.2](https://github.com/marsderp/piko/compare/v3.10.1...v3.10.2) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** Check settings when an activity resumes, not at app start ([c381e51](https://github.com/marsderp/piko/commit/c381e516ad5924d7b1f96e37928cf88c6ad530dc))
+
 ## [3.10.1](https://github.com/marsderp/piko/compare/v3.10.0...v3.10.1) (2026-10-10)
 
 ## [3.10.0](https://github.com/marsderp/piko/compare/v3.9.0...v3.10.0) (2026-10-10)
