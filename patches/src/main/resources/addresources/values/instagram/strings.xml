@@ -147,6 +147,9 @@
     <string name="piko_copy_media_link">Copy media link</string>
     <string name="piko_copied_media_link">Copied media link</string>
     <string name="piko_download_all">Download all</string>
+    <string name="piko_download_button">Show download button</string>
+    <string name="piko_download_button_desc">Adds a one tap download button beside share on posts and stories, and below save on reels. Albums download every item</string>
+    <string name="piko_download_button_no_media">Could not find the media for this item</string>
     <string name="piko_downloading_media">Downloading: </string>
     <string name="piko_downloaded_media">Downloaded: </string>
     <string name="piko_media_exists">Media exists</string>
