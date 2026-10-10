@@ -22,7 +22,7 @@ Starting with patches v3.0.0, Piko patches use [Morphe](https://morphe.software)
 
 Tap the link to add Piko as a patch source in Morphe Manager:
 
-[**➕ Add Piko to Morphe**](https://morphe.software/add-source?github=crimera/piko)
+[**➕ Add Piko (marsderp fork) to Morphe**](https://morphe.software/add-source?github=marsderp/piko&name=Piko%20%28marsderp%29)
 
 Then patch Twitter/X or Instagram:
 1. Tap X or Instagram app icon in Morphe
