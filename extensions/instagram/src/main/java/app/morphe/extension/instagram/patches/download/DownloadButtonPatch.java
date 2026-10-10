@@ -307,19 +307,30 @@ public class DownloadButtonPatch {
             if (overlay.surface != Surface.REELS) continue;
             View other = overlay.anchor.get();
             if (other == like) return;
-            if (other != null && isFullyVisible(other)) return;
+            if (other != null && isReelsLike(other) && isFullyVisible(other)) return;
             removeOverlay(overlay, i);
         }
         // Always an overlay: the column does not take extra views.
         try {
             if (OVERLAYS.containsKey(like) || FAILED_ANCHORS.contains(like) || like.getHeight() <= 0) return;
             int size = Math.min(like.getWidth(), like.getHeight());
-            addAsOverlay(createButton(like.getContext(), Surface.REELS, like), Surface.REELS, like, Axis.VERTICAL, size, size);
+            ImageView button = createButton(like.getContext(), Surface.REELS, like);
+            // The download icon is heavier than Instagram's outline icons, so draw it a bit smaller.
+            int inset = size / 7;
+            button.setPadding(inset, inset, inset, inset);
+            button.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            addAsOverlay(button, Surface.REELS, like, Axis.VERTICAL, size, size);
         } catch (Exception e) {
             FAILED_ANCHORS.add(like);
             Logger.printInfo(() -> "DownloadButtonPatch reels place failure: " + e);
             showDebugReport(like.getContext(), "Download button reels place failure: " + e, e);
         }
+    }
+
+    private static boolean isReelsLike(View view) {
+        if (reelsLikeId != 0 && view.getId() == reelsLikeId) return true;
+        CharSequence description = view.getContentDescription();
+        return description != null && description.toString().equalsIgnoreCase("like");
     }
 
     private static boolean hasAncestor(View view, int id, int levels) {
@@ -626,6 +637,13 @@ public class DownloadButtonPatch {
             View anchor = overlay.anchor.get();
             if (anchor == null || !overlay.button.isAttachedToWindow()) {
                 removeOverlay(overlay, i);
+                continue;
+            }
+            // Litho reuses the views of the reels column, so the like view of one reel can become the
+            // comment or save view of the next. Drop the button then and let the next scan find like again.
+            if (overlay.surface == Surface.REELS && !isReelsLike(anchor)) {
+                removeOverlay(overlay, i);
+                scheduleScan(anchor.getRootView());
                 continue;
             }
             positionOverlay(overlay);
