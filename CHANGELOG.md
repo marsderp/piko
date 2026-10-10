@@ -1,3 +1,9 @@
+## [3.10.4](https://github.com/marsderp/piko/compare/v3.10.3...v3.10.4) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** Show failures in a copyable dialog in debug mode ([cb2bde8](https://github.com/marsderp/piko/commit/cb2bde88b08abd888e0a9993b360b05abcce4aed))
+
 ## [3.10.3](https://github.com/marsderp/piko/compare/v3.10.2...v3.10.3) (2026-10-10)
 
 ### 🐛 Bug Fixes
