@@ -1,3 +1,9 @@
+## [3.10.3](https://github.com/marsderp/piko/compare/v3.10.2...v3.10.3) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** Fall back to an overlay when a row rejects the button ([efe277b](https://github.com/marsderp/piko/commit/efe277b4e23d8d850a530bba107f16515a785d83))
+
 ## [3.10.2](https://github.com/marsderp/piko/compare/v3.10.1...v3.10.2) (2026-10-10)
 
 ### 🐛 Bug Fixes
