@@ -145,6 +145,7 @@ public class DownloadButtonPatch {
     private static void attach(Activity activity) {
         try {
             if (activity.getWindow() == null || !isEnabled()) return;
+            lastActivity = new java.lang.ref.WeakReference<>(activity);
             View root = activity.getWindow().getDecorView();
             if (!ATTACHED_ROOTS.add(root)) return;
 
@@ -173,6 +174,7 @@ public class DownloadButtonPatch {
                 scan(root);
             } catch (Exception e) {
                 Logger.printException(() -> "DownloadButtonPatch scan failure", e);
+                showDebugReport(root.getContext(), "Download button scan failure: " + e, e);
             }
         }, SCAN_DELAY_MS);
     }
@@ -502,7 +504,46 @@ public class DownloadButtonPatch {
         if (!REPORTED_FAILURES.add(key)) return;
         String message = "Download button (" + mode + ") parent=" + parent.getClass().getName() + ": " + e;
         Logger.printInfo(() -> message);
-        if (Pref.pikoDebug()) Utils.showToastLong(message);
+        showDebugReport(parent.getContext(), message, e);
+    }
+
+    private static final Set<String> DEBUG_REPORTS_SHOWN = new java.util.HashSet<>();
+    private static java.lang.ref.WeakReference<Activity> lastActivity;
+
+    // Debug mode only: shows each distinct failure once, in a dialog that can be copied, since toasts are cut off.
+    private static void showDebugReport(Context context, String message, Throwable e) {
+        try {
+            if (!Pref.pikoDebug() || !DEBUG_REPORTS_SHOWN.add(message)) return;
+            Activity activity = lastActivity != null ? lastActivity.get() : null;
+            if (activity != null && !activity.isFinishing()) context = activity;
+
+            java.io.StringWriter trace = new java.io.StringWriter();
+            if (e != null) e.printStackTrace(new java.io.PrintWriter(trace));
+            String report = message
+                    + "\n\nIds found: " + (RESOLVED_NAMES.isEmpty() ? "none" : String.join(", ", RESOLVED_NAMES))
+                    + "\n\n" + trace;
+
+            android.widget.TextView text = new android.widget.TextView(context);
+            text.setText(report);
+            text.setTextIsSelectable(true);
+            text.setTextSize(11);
+            int padding = (int) (16 * context.getResources().getDisplayMetrics().density);
+            text.setPadding(padding, padding, padding, padding);
+            android.widget.ScrollView scroll = new android.widget.ScrollView(context);
+            scroll.addView(text);
+
+            new android.app.AlertDialog.Builder(context)
+                    .setTitle("Download button debug")
+                    .setView(scroll)
+                    .setPositiveButton("Copy", (d, w) -> {
+                        Utils.setClipboard(report);
+                        Utils.showToastShort(str("piko_copied"));
+                    })
+                    .setNegativeButton("Close", null)
+                    .show();
+        } catch (Exception ex) {
+            Logger.printException(() -> "DownloadButtonPatch debug report failure", ex);
+        }
     }
 
     private static ViewGroup.LayoutParams copyLayoutParams(ViewGroup.LayoutParams source) {
@@ -557,6 +598,7 @@ public class DownloadButtonPatch {
             PikoUtils.logger(e);
             Logger.printException(() -> "DownloadButtonPatch click failure", e);
             Utils.showToastShort(e.getMessage());
+            showDebugReport(button.getContext(), "Download button click failure: " + e, e);
         }
     }
 
