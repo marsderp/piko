@@ -1,0 +1,45 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Merge crimera/piko main
+        id: merge
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/crimera/piko.git
+          git fetch --no-tags upstream main
+
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "Already up to date"; echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          GENERATED="patches-bundle.json patches-list.json CHANGELOG.md README.md gradle.properties"
+          if ! git merge --no-ff --no-edit upstream/main; then
+            for f in $GENERATED; do
+              git checkout --ours -- "$f" 2>/dev/null && git add "$f" || true
+            done
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              echo "Conflicts outside generated files:"; git diff --name-only --diff-filter=U
+              exit 1
+            fi
+            git commit --no-edit
+          fi
+
+          git push origin main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
