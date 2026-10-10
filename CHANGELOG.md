@@ -1,3 +1,9 @@
+## [3.10.9](https://github.com/marsderp/piko/compare/v3.10.8...v3.10.9) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** follow the like button when reels views are reused, smaller reels icon ([eedde67](https://github.com/marsderp/piko/commit/eedde673101762434036562e95b66363b8c9e16d))
+
 ## [3.10.8](https://github.com/marsderp/piko/compare/v3.10.7...v3.10.8) (2026-10-10)
 
 ### 🐛 Bug Fixes
