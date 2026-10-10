@@ -277,6 +277,14 @@ public class DownloadButtonPatch {
             place(anchorIds.get(anchor.getId()), anchor, unitOf(anchor, null), Axis.HORIZONTAL);
         }
 
+        // Counts change as feed rows are reused, so measure them again on every scan.
+        for (Overlay overlay : OVERLAY_LIST) {
+            View anchor = overlay.anchor.get();
+            if (overlay.surface == Surface.FEED && anchor != null && isFullyVisible(anchor)) {
+                overlay.inkExtent = measureTrailingInk(anchor);
+            }
+        }
+
         if (reelsLike != null) reelsLikes.add(reelsLike);
         for (View like : reelsLikes) {
             if (isFullyVisible(like)) {
@@ -503,7 +511,9 @@ public class DownloadButtonPatch {
 
         ImageView button = createButton(parent.getContext(), surface, anchor);
         try {
-            if (addToParent(parent, button, surface, unit, axis, width, height)) return;
+            // Litho hosts lay out and draw their own content, so an added child would overlap it.
+            boolean litho = parent.getClass().getName().contains("ComponentHost");
+            if (!litho && addToParent(parent, button, surface, unit, axis, width, height)) return;
         } catch (Exception e) {
             // Some of Instagram's containers do not accept extra children. Some (like AdapterView)
             // also throw on removeView, so only remove the button if it was actually added.
@@ -592,6 +602,8 @@ public class DownloadButtonPatch {
         final ImageView button;
         final Surface surface;
         final Axis axis;
+        // Feed: how far the count drawn right of the anchor reaches, measured on each scan.
+        int inkExtent;
 
         Overlay(View anchor, ImageView button, Surface surface, Axis axis) {
             this.anchor = new java.lang.ref.WeakReference<>(anchor);
@@ -618,9 +630,80 @@ public class DownloadButtonPatch {
         host.addView(button, new android.widget.FrameLayout.LayoutParams(width, height));
 
         Overlay overlay = new Overlay(anchor, button, surface, axis);
+        if (surface == Surface.FEED) overlay.inkExtent = measureTrailingInk(anchor);
         OVERLAYS.put(anchor, overlay);
         OVERLAY_LIST.add(overlay);
         positionOverlay(overlay);
+
+        if (surface == Surface.FEED && Pref.pikoDebug() && !feedTreeShown) {
+            feedTreeShown = true;
+            showDebugReport(anchor.getContext(), "Download button: feed row (debug info, nothing failed). Count width: "
+                    + overlay.inkExtent + "px\n\n" + describeTree(ancestor(anchor, 2)), null);
+        }
+    }
+
+    private static boolean feedTreeShown;
+
+    // Litho draws the counts of the feed row inside its host view, so they are not TextViews and
+    // cannot be measured as views. This draws the strip right of the anchor and returns how far
+    // non-background pixels reach, so the button can go after the count.
+    private static int measureTrailingInk(View anchor) {
+        try {
+            int width = anchor.getWidth();
+            int height = anchor.getHeight();
+            if (width <= 0 || height <= 0) return 0;
+
+            // The nearest ancestor wide enough to hold the count, with the anchor's offset inside it.
+            View host = anchor;
+            int offsetX = 0;
+            int offsetY = 0;
+            while (host.getParent() instanceof View && host.getWidth() < width * 4) {
+                offsetX += host.getLeft() + (int) host.getTranslationX();
+                offsetY += host.getTop() + (int) host.getTranslationY();
+                host = (View) host.getParent();
+            }
+            if (host == anchor) return 0;
+
+            int startX = offsetX + width;
+            int span = Math.min(width * 4, host.getWidth() - startX);
+            if (span <= 0) return 0;
+
+            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(span, height, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+            canvas.translate(-startX, -offsetY);
+            host.draw(canvas);
+            int[] pixels = new int[span * height];
+            bitmap.getPixels(pixels, 0, span, 0, 0, span, height);
+            bitmap.recycle();
+
+            // The top row of the strip is above the text, so it holds the background.
+            int background = pixels[0];
+            int last = -1;
+            int emptyRun = 0;
+            for (int x = 0; x < span; x++) {
+                boolean ink = false;
+                for (int y = height / 4; y < height * 3 / 4 && !ink; y++) {
+                    ink = colorDistance(pixels[y * span + x], background) > 96;
+                }
+                if (ink) {
+                    last = x;
+                    emptyRun = 0;
+                } else {
+                    emptyRun++;
+                    // Stop at the gap after the count, or when nothing starts close to the anchor.
+                    if (last >= 0 ? emptyRun > width / 2 : x > width / 2) break;
+                }
+            }
+            return last + 1;
+        } catch (Throwable e) {
+            Logger.printInfo(() -> "DownloadButtonPatch count measure failure: " + e);
+            return 0;
+        }
+    }
+
+    private static int colorDistance(int a, int b) {
+        return Math.abs(Color.alpha(a) - Color.alpha(b)) + Math.abs(Color.red(a) - Color.red(b))
+                + Math.abs(Color.green(a) - Color.green(b)) + Math.abs(Color.blue(a) - Color.blue(b));
     }
 
     private static void removeOverlay(Overlay overlay, int index) {
@@ -674,7 +757,10 @@ public class DownloadButtonPatch {
             y = top - height;
         } else if (overlay.axis == Axis.HORIZONTAL) {
             // After the count label too, like the share count of a feed post.
-            x = trailingEdge(anchor, Axis.HORIZONTAL) + (overlay.surface == Surface.FEED ? feedGap(anchor.getContext()) : 0);
+            x = trailingEdge(anchor, Axis.HORIZONTAL);
+            if (overlay.surface == Surface.FEED) {
+                x = Math.max(x, left + width + overlay.inkExtent) + feedGap(anchor.getContext());
+            }
             y = top;
         } else {
             // Reels: above like, in line with the column, with the column's own spacing.
