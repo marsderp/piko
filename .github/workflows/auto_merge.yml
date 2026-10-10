@@ -1,0 +1,34 @@
+name: Auto-merge Claude PRs
+
+# Merges an open, ready (non-draft) PR from a claude/* branch of this repository
+# once "Test pull request" passes on its latest commit.
+on:
+  workflow_run:
+    workflows: ["Test pull request"]
+    types: [completed]
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      startsWith(github.event.workflow_run.head_branch, 'claude/') &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge pull request
+        env:
+          # A personal token, so the merge push starts the Release workflow.
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open \
+            --json number,headRefOid,isDraft \
+            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\" and (.isDraft | not)) | .number")
+          if [ -z "$pr" ]; then
+            echo "No open, ready PR whose head is $HEAD_SHA on $BRANCH"
+            exit 0
+          fi
+          gh pr merge "$pr" --repo "$REPO" --merge
