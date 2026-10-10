@@ -151,6 +151,14 @@ public class DownloadButtonPatch {
             resolveIds(activity);
             ViewTreeObserver.OnGlobalLayoutListener listener = () -> scheduleScan(root);
             root.getViewTreeObserver().addOnGlobalLayoutListener(listener);
+            root.getViewTreeObserver().addOnPreDrawListener(() -> {
+                try {
+                    if (!OVERLAY_LIST.isEmpty()) updateOverlays();
+                } catch (Exception e) {
+                    Logger.printException(() -> "DownloadButtonPatch overlay update failure", e);
+                }
+                return true;
+            });
             scheduleScan(root);
         } catch (Exception e) {
             Logger.printException(() -> "DownloadButtonPatch attach failure", e);
@@ -254,7 +262,7 @@ public class DownloadButtonPatch {
         }
 
         for (ViewGroup container : reelsContainers) {
-            if (containsButton(container)) continue;
+            if (containsButton(container) || hasOverlayIn(container)) continue;
             View save = findReelsSave(container);
             if (save != null) place(Surface.REELS, save, unitOf(save, container), Axis.VERTICAL);
         }
@@ -266,6 +274,7 @@ public class DownloadButtonPatch {
             ViewGroup group = (ViewGroup) parent;
             if (containsButton(group)) continue;
             if (group.getParent() instanceof ViewGroup && containsButton((ViewGroup) group.getParent())) continue;
+            if (hasOverlayIn(group)) continue;
 
             View target = surface == Surface.FEED ? rightmostLeftGroupChild(group) : nextVisibleSibling(group, fallback);
             if (target != null) place(surface, target, target, Axis.HORIZONTAL);
@@ -331,6 +340,15 @@ public class DownloadButtonPatch {
         return view;
     }
 
+    private static boolean hasOverlayIn(ViewGroup group) {
+        for (View anchor : OVERLAYS.keySet()) {
+            for (ViewParent p = anchor.getParent(); p != null; p = p.getParent()) {
+                if (p == group) return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean containsButton(ViewGroup group) {
         for (int i = 0; i < group.getChildCount(); i++) {
             if (BUTTON_TAG.equals(group.getChildAt(i).getTag())) return true;
@@ -339,45 +357,152 @@ public class DownloadButtonPatch {
     }
 
     private static void place(Surface surface, View anchor, View unit, Axis axis) {
+        if (OVERLAYS.containsKey(anchor) || FAILED_ANCHORS.contains(anchor)) return;
+
+        ViewParent viewParent = unit.getParent();
+        if (!(viewParent instanceof ViewGroup)) return;
+        ViewGroup parent = (ViewGroup) viewParent;
+        if (containsButton(parent)) return;
+
+        int width = anchor.getWidth();
+        int height = anchor.getHeight();
+        if (width <= 0 || height <= 0) return;
+
+        ImageView button = createButton(parent.getContext(), surface, anchor);
         try {
-            ViewParent viewParent = unit.getParent();
-            if (!(viewParent instanceof ViewGroup)) return;
-            ViewGroup parent = (ViewGroup) viewParent;
-            if (containsButton(parent)) return;
-
-            int width = anchor.getWidth();
-            int height = anchor.getHeight();
-            if (width <= 0 || height <= 0) return;
-
-            ImageView button = createButton(parent.getContext(), surface, anchor);
-            int index = parent.indexOfChild(unit) + 1;
-
-            boolean linear = parent instanceof LinearLayout
-                    && ((LinearLayout) parent).getOrientation()
-                    == (axis == Axis.HORIZONTAL ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
-
-            if (linear) {
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, height);
-                params.gravity = android.view.Gravity.CENTER;
-                parent.addView(button, index, params);
-            } else {
-                // Unknown layout: take the unit's own params so it sits where the unit does, then shift it over.
-                ViewGroup.LayoutParams params = copyLayoutParams(unit.getLayoutParams());
-                if (params == null) return;
-                params.width = width;
-                params.height = height;
-                if (axis == Axis.HORIZONTAL) {
-                    button.setTranslationX(unit.getWidth());
-                } else if (surface == Surface.STORY) {
-                    button.setTranslationY(-height);
-                } else {
-                    button.setTranslationY(unit.getHeight());
-                }
-                parent.addView(button, index, params);
-            }
+            addToParent(parent, button, surface, unit, axis, width, height);
+            return;
         } catch (Exception e) {
-            Logger.printException(() -> "DownloadButtonPatch place failure", e);
+            // Some of Instagram's containers do not accept extra children.
+            parent.removeView(button);
+            reportFailure("in row", parent, e);
         }
+
+        try {
+            addAsOverlay(button, surface, anchor, axis, width, height);
+        } catch (Exception e) {
+            FAILED_ANCHORS.add(anchor);
+            reportFailure("overlay", parent, e);
+        }
+    }
+
+    private static void addToParent(ViewGroup parent, ImageView button, Surface surface, View unit,
+                                    Axis axis, int width, int height) {
+        int index = parent.indexOfChild(unit) + 1;
+
+        boolean linear = parent instanceof LinearLayout
+                && ((LinearLayout) parent).getOrientation()
+                == (axis == Axis.HORIZONTAL ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+
+        if (linear) {
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, height);
+            params.gravity = android.view.Gravity.CENTER;
+            parent.addView(button, index, params);
+            return;
+        }
+        if (!(parent instanceof android.widget.FrameLayout || parent instanceof android.widget.RelativeLayout
+                || parent.getClass().getName().endsWith("ConstraintLayout"))) {
+            throw new IllegalStateException("unsupported parent");
+        }
+
+        // Take the unit's own params so the button sits where the unit does, then shift it over.
+        ViewGroup.LayoutParams params = copyLayoutParams(unit.getLayoutParams());
+        params.width = width;
+        params.height = height;
+        button.setTranslationX(offsetX(surface, axis, unit.getWidth()));
+        button.setTranslationY(offsetY(surface, axis, unit.getHeight(), height));
+        parent.addView(button, index, params);
+    }
+
+    private static int offsetX(Surface surface, Axis axis, int unitWidth) {
+        return axis == Axis.HORIZONTAL && surface != Surface.STORY ? unitWidth : 0;
+    }
+
+    private static int offsetY(Surface surface, Axis axis, int unitHeight, int height) {
+        if (surface == Surface.STORY) return -height;
+        return axis == Axis.VERTICAL ? unitHeight : 0;
+    }
+
+    // Overlay mode: the button lives in the activity's content view and follows the anchor on every frame.
+    private static final class Overlay {
+        final java.lang.ref.WeakReference<View> anchor;
+        final ImageView button;
+        final Surface surface;
+        final Axis axis;
+
+        Overlay(View anchor, ImageView button, Surface surface, Axis axis) {
+            this.anchor = new java.lang.ref.WeakReference<>(anchor);
+            this.button = button;
+            this.surface = surface;
+            this.axis = axis;
+        }
+    }
+
+    private static final Map<View, Overlay> OVERLAYS = new WeakHashMap<>();
+    private static final List<Overlay> OVERLAY_LIST = new ArrayList<>();
+    private static final Set<View> FAILED_ANCHORS = Collections.newSetFromMap(new WeakHashMap<>());
+    private static final Set<String> REPORTED_FAILURES = new java.util.HashSet<>();
+    private static final android.graphics.Rect VISIBLE_RECT = new android.graphics.Rect();
+    private static final int[] LOCATION = new int[2];
+    private static final int[] HOST_LOCATION = new int[2];
+
+    private static void addAsOverlay(ImageView button, Surface surface, View anchor, Axis axis, int width, int height) {
+        View content = anchor.getRootView().findViewById(android.R.id.content);
+        if (!(content instanceof android.widget.FrameLayout)) {
+            throw new IllegalStateException("no content view: " + content);
+        }
+        android.widget.FrameLayout host = (android.widget.FrameLayout) content;
+        host.addView(button, new android.widget.FrameLayout.LayoutParams(width, height));
+
+        Overlay overlay = new Overlay(anchor, button, surface, axis);
+        OVERLAYS.put(anchor, overlay);
+        OVERLAY_LIST.add(overlay);
+        positionOverlay(overlay);
+    }
+
+    private static void updateOverlays() {
+        for (int i = OVERLAY_LIST.size() - 1; i >= 0; i--) {
+            Overlay overlay = OVERLAY_LIST.get(i);
+            View anchor = overlay.anchor.get();
+            if (anchor == null || !overlay.button.isAttachedToWindow()) {
+                ViewParent host = overlay.button.getParent();
+                if (host instanceof ViewGroup) ((ViewGroup) host).removeView(overlay.button);
+                if (anchor != null) OVERLAYS.remove(anchor);
+                OVERLAY_LIST.remove(i);
+                continue;
+            }
+            positionOverlay(overlay);
+        }
+    }
+
+    private static void positionOverlay(Overlay overlay) {
+        View anchor = overlay.anchor.get();
+        View host = (View) overlay.button.getParent();
+        if (anchor == null || host == null) return;
+
+        // Only while the anchor is fully on screen, so the button never floats over the tab bar or headers.
+        boolean shown = anchor.isAttachedToWindow() && anchor.isShown() && anchor.getWidth() > 0
+                && anchor.getRootView() == host.getRootView()
+                && anchor.getGlobalVisibleRect(VISIBLE_RECT)
+                && VISIBLE_RECT.height() == anchor.getHeight() && VISIBLE_RECT.width() == anchor.getWidth();
+        int visibility = shown ? View.VISIBLE : View.GONE;
+        if (overlay.button.getVisibility() != visibility) overlay.button.setVisibility(visibility);
+        if (!shown) return;
+
+        anchor.getLocationInWindow(LOCATION);
+        host.getLocationInWindow(HOST_LOCATION);
+        float x = LOCATION[0] - HOST_LOCATION[0] + offsetX(overlay.surface, overlay.axis, anchor.getWidth());
+        float y = LOCATION[1] - HOST_LOCATION[1] + offsetY(overlay.surface, overlay.axis, anchor.getHeight(), anchor.getHeight());
+        if (overlay.button.getTranslationX() != x) overlay.button.setTranslationX(x);
+        if (overlay.button.getTranslationY() != y) overlay.button.setTranslationY(y);
+    }
+
+    private static void reportFailure(String mode, ViewGroup parent, Exception e) {
+        String key = mode + parent.getClass().getName() + e.getClass().getName();
+        if (!REPORTED_FAILURES.add(key)) return;
+        String message = "Download button (" + mode + ") parent=" + parent.getClass().getName() + ": " + e;
+        Logger.printInfo(() -> message);
+        if (Pref.pikoDebug()) Utils.showToastLong(message);
     }
 
     private static ViewGroup.LayoutParams copyLayoutParams(ViewGroup.LayoutParams source) {
