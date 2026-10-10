@@ -1,3 +1,9 @@
+## [3.10.8](https://github.com/marsderp/piko/compare/v3.10.7...v3.10.8) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **Instagram - Download button:** reels button above like and a deeper media search ([800ec12](https://github.com/marsderp/piko/commit/800ec12e6f8749ddd0f15b72a0674b4dbe637ac8))
+
 ## [3.10.7](https://github.com/marsderp/piko/compare/v3.10.6...v3.10.7) (2026-10-10)
 
 ### 🐛 Bug Fixes
