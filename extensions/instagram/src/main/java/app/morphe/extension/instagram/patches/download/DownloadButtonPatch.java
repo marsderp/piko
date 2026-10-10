@@ -78,6 +78,11 @@ public class DownloadButtonPatch {
     // Generic names only accepted inside the reels button column.
     private static final String[] REELS_GENERIC_ANCHORS = {"save_button", "row_feed_button_save"};
 
+    // Views of the feed row, used to tell its save button apart from the reels one.
+    private static final String[] FEED_ROW_IDS = {
+            "row_feed_view_group_buttons", "row_feed_button_save", "row_feed_button_share", "row_feed_button_like"
+    };
+
     private static final String REEL_ITEM_CLASS = "com.instagram.model.reels.ReelItem";
 
     private static final int SCAN_DELAY_MS = 150;
@@ -92,6 +97,7 @@ public class DownloadButtonPatch {
     private static Map<Integer, Surface> anchorIds;
     private static Map<Integer, Surface> fallbackIds;
     private static Set<Integer> reelsGenericIds;
+    private static Set<Integer> feedRowIds = Collections.emptySet();
     private static int reelsContainerId;
 
     private static Class<?> mediaClass;
@@ -211,6 +217,10 @@ public class DownloadButtonPatch {
         Map<Integer, Surface> generic = new HashMap<>();
         putIds(context, generic, REELS_GENERIC_ANCHORS, Surface.REELS);
 
+        Map<Integer, Surface> feedRow = new HashMap<>();
+        putIds(context, feedRow, FEED_ROW_IDS, Surface.FEED);
+        feedRowIds = feedRow.keySet();
+
         reelsContainerId = getId(context, REELS_CONTAINER);
         if (reelsContainerId != 0) RESOLVED_NAMES.add(REELS_CONTAINER);
         reelsGenericIds = generic.keySet();
@@ -230,6 +240,10 @@ public class DownloadButtonPatch {
         List<View> anchors = new ArrayList<>();
         List<View> fallbacks = new ArrayList<>();
         List<ViewGroup> reelsContainers = new ArrayList<>();
+        // Reels buttons sit in a column on the right edge, so they are also found by their labels.
+        List<View> reelsSaves = new ArrayList<>();
+        View reelsLike = null;
+        int rootWidth = root.getWidth();
 
         ArrayDeque<View> queue = new ArrayDeque<>();
         queue.add(root);
@@ -249,6 +263,16 @@ public class DownloadButtonPatch {
                 }
             }
 
+            String label = rightColumnLabel(view, rootWidth);
+            if (label != null && !anchorIds.containsKey(id)) {
+                if (isSaveLabel(label)) {
+                    reelsSaves.add(view);
+                    // The icon inside a labelled wrapper would match too.
+                    continue;
+                }
+                if (reelsLike == null && label.contains("like")) reelsLike = view;
+            }
+
             if (view instanceof ViewGroup) {
                 ViewGroup group = (ViewGroup) view;
                 for (int i = 0; i < group.getChildCount(); i++) {
@@ -263,10 +287,33 @@ public class DownloadButtonPatch {
             place(surface, anchor, unitOf(anchor, null), axis);
         }
 
+        boolean reelsFound = false;
+        for (View anchor : anchors) {
+            if (anchorIds.get(anchor.getId()) == Surface.REELS) reelsFound = true;
+        }
+
         for (ViewGroup container : reelsContainers) {
-            if (containsButton(container) || hasOverlayIn(container)) continue;
+            if (containsButton(container) || hasOverlayIn(container)) {
+                reelsFound = true;
+                continue;
+            }
             View save = findReelsSave(container);
-            if (save != null) place(Surface.REELS, save, unitOf(save, container), Axis.VERTICAL);
+            if (save != null) {
+                reelsFound = true;
+                place(Surface.REELS, save, unitOf(save, container), Axis.VERTICAL);
+            }
+        }
+
+        for (View save : reelsSaves) {
+            reelsFound = true;
+            if (isNearOverlay(save)) continue;
+            place(Surface.REELS, save, unitOf(save, null), Axis.VERTICAL);
+        }
+
+        if (!reelsFound && reelsLike != null && Pref.pikoDebug() && !reelsReportShown) {
+            reelsReportShown = true;
+            showDebugReport(root.getContext(), "Download button: reels column found but no save button.\n\n"
+                    + describeTree(ancestor(reelsLike, 3)), null);
         }
 
         for (View fallback : fallbacks) {
@@ -283,6 +330,98 @@ public class DownloadButtonPatch {
         }
     }
 
+    private static boolean reelsReportShown;
+
+    // Lower case content description of a small button on the right edge of the screen outside feed rows, else null.
+    private static String rightColumnLabel(View view, int rootWidth) {
+        CharSequence description = view.getContentDescription();
+        if (description == null || description.length() == 0 || rootWidth <= 0) return null;
+        int width = view.getWidth();
+        int height = view.getHeight();
+        if (width <= 0 || height <= 0 || width > rootWidth / 4 || height > rootWidth / 4) return null;
+        view.getLocationInWindow(LABEL_LOCATION);
+        if (LABEL_LOCATION[0] + width / 2 < rootWidth * 3 / 4) return null;
+        if (inFeedRow(view)) return null;
+        return description.toString().toLowerCase();
+    }
+
+    private static final int[] LABEL_LOCATION = new int[2];
+
+    private static boolean isSaveLabel(String label) {
+        return label.startsWith("save") || label.contains(" save") || label.contains("collection")
+                || label.contains("bookmark");
+    }
+
+    // Feed rows have their own save button on the right edge, which must not be taken for the reels one.
+    private static boolean inFeedRow(View view) {
+        View current = view;
+        for (int i = 0; i < 6 && current != null; i++) {
+            if (feedRowIds.contains(current.getId())) return true;
+            if (current instanceof ViewGroup) {
+                ViewGroup group = (ViewGroup) current;
+                for (int c = 0; c < group.getChildCount(); c++) {
+                    if (feedRowIds.contains(group.getChildAt(c).getId())) return true;
+                }
+            }
+            ViewParent parent = current.getParent();
+            current = parent instanceof View ? (View) parent : null;
+        }
+        return false;
+    }
+
+    // True when the view is inside, or holds, a view that already has a button.
+    private static boolean isNearOverlay(View view) {
+        for (View anchor : OVERLAYS.keySet()) {
+            for (View v = anchor; v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null) {
+                if (v == view) return true;
+            }
+            for (View v = view; v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null) {
+                if (v == anchor) return true;
+            }
+        }
+        ViewParent parent = view.getParent();
+        return parent instanceof ViewGroup && containsButton((ViewGroup) parent);
+    }
+
+    private static View ancestor(View view, int levels) {
+        View current = view;
+        for (int i = 0; i < levels && current.getParent() instanceof View; i++) {
+            current = (View) current.getParent();
+        }
+        return current;
+    }
+
+    // Debug mode: id name, class and label of each view, so the real reels ids can be copied.
+    private static String describeTree(View root) {
+        StringBuilder out = new StringBuilder();
+        describeTree(root, 0, out);
+        return out.toString();
+    }
+
+    private static void describeTree(View view, int depth, StringBuilder out) {
+        if (depth > 8 || out.length() > 6000) return;
+        for (int i = 0; i < depth; i++) out.append("  ");
+        String idName = "-";
+        if (view.getId() != View.NO_ID) {
+            try {
+                idName = view.getResources().getResourceEntryName(view.getId());
+            } catch (Exception ignored) {
+                idName = String.valueOf(view.getId());
+            }
+        }
+        out.append(idName).append(' ').append(view.getClass().getSimpleName());
+        if (view.getContentDescription() != null) out.append(" \"").append(view.getContentDescription()).append('"');
+        if (view instanceof android.widget.TextView) {
+            out.append(" text=\"").append(((android.widget.TextView) view).getText()).append('"');
+        }
+        if (view.getVisibility() != View.VISIBLE) out.append(" hidden");
+        out.append('\n');
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) describeTree(group.getChildAt(i), depth + 1, out);
+        }
+    }
+
     // Save button in the reels column, by id or by its English content description.
     private static View findReelsSave(ViewGroup container) {
         ArrayDeque<View> queue = new ArrayDeque<>();
@@ -292,7 +431,7 @@ public class DownloadButtonPatch {
             if (view != container) {
                 if (reelsGenericIds.contains(view.getId())) return view;
                 CharSequence description = view.getContentDescription();
-                if (description != null && description.toString().toLowerCase().startsWith("save")) return view;
+                if (description != null && isSaveLabel(description.toString().toLowerCase())) return view;
             }
             if (view instanceof ViewGroup) {
                 ViewGroup group = (ViewGroup) view;
@@ -415,6 +554,12 @@ public class DownloadButtonPatch {
                 == (axis == Axis.HORIZONTAL ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
 
         if (linear) {
+            if (axis == Axis.HORIZONTAL) {
+                // After the count label of the button, like the share count of a feed post.
+                while (index < parent.getChildCount() && parent.getChildAt(index) instanceof android.widget.TextView) {
+                    index++;
+                }
+            }
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, height);
             params.gravity = android.view.Gravity.CENTER;
             parent.addView(button, index, params);
@@ -429,10 +574,18 @@ public class DownloadButtonPatch {
         ViewGroup.LayoutParams params = copyLayoutParams(unit.getLayoutParams());
         params.width = width;
         params.height = height;
-        button.setTranslationX(offsetX(surface, axis, unit.getWidth()));
-        button.setTranslationY(offsetY(surface, axis, unit.getHeight(), height));
+        button.setTranslationX(offsetX(surface, axis, unit.getWidth()) + labelExtent(unit, surface, axis, Axis.HORIZONTAL));
+        button.setTranslationY(offsetY(surface, axis, unit.getHeight(), height) + labelExtent(unit, surface, axis, Axis.VERTICAL));
         parent.addView(button, index, params);
         return true;
+    }
+
+    // How far count labels reach past the unit along the placement axis.
+    private static int labelExtent(View unit, Surface surface, Axis axis, Axis direction) {
+        if (surface == Surface.STORY || axis != direction) return 0;
+        unit.getLocationInWindow(LOCATION);
+        int end = direction == Axis.HORIZONTAL ? LOCATION[0] + unit.getWidth() : LOCATION[1] + unit.getHeight();
+        return Math.max(0, trailingEdge(unit, direction) - end);
     }
 
     private static int offsetX(Surface surface, Axis axis, int unitWidth) {
@@ -512,10 +665,106 @@ public class DownloadButtonPatch {
 
         anchor.getLocationInWindow(LOCATION);
         host.getLocationInWindow(HOST_LOCATION);
-        float x = LOCATION[0] - HOST_LOCATION[0] + offsetX(overlay.surface, overlay.axis, anchor.getWidth());
-        float y = LOCATION[1] - HOST_LOCATION[1] + offsetY(overlay.surface, overlay.axis, anchor.getHeight(), anchor.getHeight());
+        int width = anchor.getWidth();
+        int height = anchor.getHeight();
+        int left = LOCATION[0];
+        int top = LOCATION[1];
+        float x;
+        float y;
+        if (overlay.surface == Surface.STORY) {
+            x = left;
+            y = top - height;
+        } else if (overlay.axis == Axis.HORIZONTAL) {
+            // After the count label too, like the share count of a feed post.
+            x = trailingEdge(anchor, Axis.HORIZONTAL);
+            y = top;
+        } else {
+            int bottom = trailingEdge(anchor, Axis.VERTICAL);
+            if (blockedBelow(anchor, left, bottom, width, height)) {
+                // The next button of the column is right below, so take the free space to the left instead.
+                x = left - width;
+                y = top;
+            } else {
+                x = left;
+                y = bottom;
+            }
+        }
+        x -= HOST_LOCATION[0];
+        y -= HOST_LOCATION[1];
         if (overlay.button.getTranslationX() != x) overlay.button.setTranslationX(x);
         if (overlay.button.getTranslationY() != y) overlay.button.setTranslationY(y);
+    }
+
+    private static final int[] EDGE_LOCATION = new int[2];
+    private static final int[] TEXT_LOCATION = new int[2];
+
+    // Window x of the anchor's right edge (or y of its bottom edge), moved past count labels that directly follow it.
+    private static int trailingEdge(View anchor, Axis axis) {
+        anchor.getLocationInWindow(EDGE_LOCATION);
+        int left = EDGE_LOCATION[0];
+        int top = EDGE_LOCATION[1];
+        int width = anchor.getWidth();
+        int height = anchor.getHeight();
+        boolean horizontal = axis == Axis.HORIZONTAL;
+        int edge = horizontal ? left + width : top + height;
+        int size = horizontal ? height : width;
+
+        List<int[]> labels = new ArrayList<>();
+        collectLabels(ancestor(anchor, 2), anchor, 0, labels);
+        boolean moved = true;
+        while (moved) {
+            moved = false;
+            for (int[] r : labels) {
+                // r = {left, top, right, bottom}
+                int start = horizontal ? r[0] : r[1];
+                int end = horizontal ? r[2] : r[3];
+                int center = horizontal ? (r[1] + r[3]) / 2 : (r[0] + r[2]) / 2;
+                boolean inLine = horizontal ? center >= top && center <= top + height : center >= left && center <= left + width;
+                if (inLine && end > edge && start >= edge - size / 2 && start <= edge + size / 2) {
+                    edge = end;
+                    moved = true;
+                }
+            }
+        }
+        return edge;
+    }
+
+    private static void collectLabels(View view, View anchor, int depth, List<int[]> out) {
+        if (view.getVisibility() != View.VISIBLE || BUTTON_TAG.equals(view.getTag())) return;
+        if (view instanceof android.widget.TextView && view != anchor) {
+            CharSequence text = ((android.widget.TextView) view).getText();
+            if (text != null && text.length() > 0 && view.getWidth() > 0) {
+                view.getLocationInWindow(TEXT_LOCATION);
+                out.add(new int[]{TEXT_LOCATION[0], TEXT_LOCATION[1],
+                        TEXT_LOCATION[0] + view.getWidth(), TEXT_LOCATION[1] + view.getHeight()});
+            }
+            return;
+        }
+        if (depth >= 4 || !(view instanceof ViewGroup)) return;
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) collectLabels(group.getChildAt(i), anchor, depth + 1, out);
+    }
+
+    // True when another button of the column starts within one button height below `bottom`.
+    private static boolean blockedBelow(View anchor, int left, int bottom, int width, int height) {
+        View current = anchor;
+        for (int level = 0; level < 3 && current.getParent() instanceof ViewGroup; level++) {
+            ViewGroup parent = (ViewGroup) current.getParent();
+            for (int i = 0; i < parent.getChildCount(); i++) {
+                View child = parent.getChildAt(i);
+                if (child == current || child.getVisibility() != View.VISIBLE || BUTTON_TAG.equals(child.getTag())) continue;
+                // Skip the media and other large views behind the column.
+                if (child.getWidth() <= 0 || child.getWidth() > width * 3 || child.getHeight() > height * 3) continue;
+                child.getLocationInWindow(TEXT_LOCATION);
+                int childLeft = TEXT_LOCATION[0];
+                int childTop = TEXT_LOCATION[1];
+                boolean overlapsX = childLeft < left + width && childLeft + child.getWidth() > left;
+                boolean overlapsY = childTop < bottom + height && childTop + child.getHeight() > bottom;
+                if (overlapsX && overlapsY) return true;
+            }
+            current = parent;
+        }
+        return false;
     }
 
     private static void reportFailure(String mode, ViewGroup parent, Exception e) {
