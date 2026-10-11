@@ -628,8 +628,17 @@ public class DownloadButtonPatch {
         if (!(content instanceof android.widget.FrameLayout)) {
             throw new IllegalStateException("no content view: " + content);
         }
-        android.widget.FrameLayout host = (android.widget.FrameLayout) content;
-        host.addView(button, new android.widget.FrameLayout.LayoutParams(width, height));
+        android.widget.FrameLayout host = overlayHost(anchor, (android.widget.FrameLayout) content);
+        try {
+            // Right above the branch holding the list, so views added later (sheets) stay on top.
+            host.addView(button, host == content ? -1 : host.indexOfChild(childToward(host, anchor)) + 1,
+                    new android.widget.FrameLayout.LayoutParams(width, height));
+        } catch (Exception e) {
+            if (host == content) throw e;
+            if (button.getParent() == host) host.removeView(button);
+            host = (android.widget.FrameLayout) content;
+            host.addView(button, new android.widget.FrameLayout.LayoutParams(width, height));
+        }
 
         Overlay overlay = new Overlay(anchor, button, surface, axis);
         if (surface == Surface.FEED) overlay.inkExtent = measureTrailingInk(anchor);
@@ -645,6 +654,27 @@ public class DownloadButtonPatch {
     }
 
     private static boolean feedTreeShown;
+
+    private static View childToward(ViewGroup group, View view) {
+        while (view.getParent() instanceof View && view.getParent() != group) view = (View) view.getParent();
+        return view;
+    }
+
+    // The frame around the scrolling list that holds the anchor (the feed list or the reels pager).
+    // Share and more sheets are added above that frame, so they cover the button like the rest of the
+    // post. Falls back to the content view when there is no such list.
+    private static android.widget.FrameLayout overlayHost(View anchor, android.widget.FrameLayout content) {
+        boolean pastList = false;
+        for (ViewParent p = anchor.getParent(); p instanceof View && p != content; p = p.getParent()) {
+            String name = p.getClass().getName();
+            if (name.contains("RecyclerView") || name.contains("ViewPager") || name.contains("ListView")) {
+                pastList = true;
+            } else if (pastList && p instanceof android.widget.FrameLayout) {
+                return (android.widget.FrameLayout) p;
+            }
+        }
+        return content;
+    }
 
     // Litho draws the counts of the feed row inside its host view, so they are not TextViews and
     // cannot be measured as views. This draws the strip right of the anchor and returns how far
@@ -770,8 +800,9 @@ public class DownloadButtonPatch {
             x = left + (width - size) / 2f;
             y = top - size - size / 2f;
         }
-        x -= HOST_LOCATION[0];
-        y -= HOST_LOCATION[1];
+        // The host lays the button out inside its padding.
+        x -= HOST_LOCATION[0] + host.getPaddingLeft();
+        y -= HOST_LOCATION[1] + host.getPaddingTop();
         if (overlay.button.getTranslationX() != x) overlay.button.setTranslationX(x);
         if (overlay.button.getTranslationY() != y) overlay.button.setTranslationY(y);
     }
