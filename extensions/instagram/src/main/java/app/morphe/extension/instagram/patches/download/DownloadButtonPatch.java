@@ -628,7 +628,9 @@ public class DownloadButtonPatch {
         if (!(content instanceof android.widget.FrameLayout)) {
             throw new IllegalStateException("no content view: " + content);
         }
-        android.widget.FrameLayout host = overlayHost(anchor, (android.widget.FrameLayout) content);
+        // Stories already look right on top of the content view, so only feed and reels move.
+        android.widget.FrameLayout host = surface == Surface.STORY ? (android.widget.FrameLayout) content
+                : overlayHost(anchor, (android.widget.FrameLayout) content);
         try {
             // Right above the branch holding the list, so views added later (sheets) stay on top.
             host.addView(button, host == content ? -1 : host.indexOfChild(childToward(host, anchor)) + 1,
