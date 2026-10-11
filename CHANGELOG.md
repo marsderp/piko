@@ -1,3 +1,10 @@
+## [3.11.3](https://github.com/marsderp/piko/compare/v3.11.2...v3.11.3) (2026-10-11)
+
+### 🐛 Bug Fixes
+
+* **Instagram:** keep the download button under share and more sheets ([4891f95](https://github.com/marsderp/piko/commit/4891f959e8bcfdb5a1d698d1fdfcaacc2e7fc4fc))
+* **Instagram:** leave the story download button in the content view ([1b38d02](https://github.com/marsderp/piko/commit/1b38d020c867d22d76964519b4e52ae8d97fdbff))
+
 ## [3.11.2](https://github.com/marsderp/piko/compare/v3.11.1...v3.11.2) (2026-10-10)
 
 ### 🐛 Bug Fixes
