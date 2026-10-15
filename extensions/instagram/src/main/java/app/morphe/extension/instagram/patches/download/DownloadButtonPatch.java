@@ -293,8 +293,20 @@ public class DownloadButtonPatch {
             }
         }
 
+        boolean storyShare = false;
+        for (View anchor : anchors) {
+            // Only the story on screen, not the pages next to it.
+            if (anchorIds.get(anchor.getId()) == Surface.STORY && isFullyVisible(anchor)) storyShare = true;
+        }
+        if (storyShare) removeStoryLikeOverlays();
+
         for (View fallback : fallbacks) {
             Surface surface = fallbackIds.get(fallback.getId());
+            if (surface == Surface.STORY && !storyShare) {
+                // Stories that do not allow resharing have no share button, so the button goes above like.
+                placeStoryLike(fallback);
+                continue;
+            }
             ViewParent parent = fallback.getParent();
             if (!(parent instanceof ViewGroup)) continue;
             ViewGroup group = (ViewGroup) parent;
@@ -333,6 +345,34 @@ public class DownloadButtonPatch {
             Logger.printInfo(() -> "DownloadButtonPatch reels place failure: " + e);
             showDebugReport(like.getContext(), "Download button reels place failure: " + e, e);
         }
+    }
+
+    // Overlay mode, so the button is not clipped by the reply bar.
+    private static void placeStoryLike(View like) {
+        if (!isFullyVisible(like)) return;
+        try {
+            if (OVERLAYS.containsKey(like) || FAILED_ANCHORS.contains(like)) return;
+            int size = Math.min(like.getWidth(), like.getHeight());
+            if (size <= 0) return;
+            ImageView button = createButton(like.getContext(), Surface.STORY, like);
+            addAsOverlay(button, Surface.STORY, like, Axis.HORIZONTAL, size, size);
+        } catch (Exception e) {
+            FAILED_ANCHORS.add(like);
+            Logger.printInfo(() -> "DownloadButtonPatch story like place failure: " + e);
+            showDebugReport(like.getContext(), "Download button story place failure: " + e, e);
+        }
+    }
+
+    // A story with share is back on screen: drop the buttons placed above like for stories without it.
+    private static void removeStoryLikeOverlays() {
+        for (int i = OVERLAY_LIST.size() - 1; i >= 0; i--) {
+            Overlay overlay = OVERLAY_LIST.get(i);
+            if (overlay.surface == Surface.STORY && isStoryLike(overlay.anchor.get())) removeOverlay(overlay, i);
+        }
+    }
+
+    private static boolean isStoryLike(View view) {
+        return view != null && fallbackIds.get(view.getId()) == Surface.STORY;
     }
 
     private static boolean isReelsLike(View view) {
