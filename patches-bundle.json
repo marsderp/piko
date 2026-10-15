@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-11T16:31:31",
-  "description": "## [3.11.3](https://github.com/marsderp/piko/compare/v3.11.2...v3.11.3) (2026-10-11)\n\n### 🐛 Bug Fixes\n\n* **Instagram:** keep the download button under share and more sheets ([4891f95](https://github.com/marsderp/piko/commit/4891f959e8bcfdb5a1d698d1fdfcaacc2e7fc4fc))\n* **Instagram:** leave the story download button in the content view ([1b38d02](https://github.com/marsderp/piko/commit/1b38d020c867d22d76964519b4e52ae8d97fdbff))",
-  "download_url": "https://github.com/marsderp/piko/releases/download/v3.11.3/patches-3.11.3.mpp",
-  "signature_download_url": "https://github.com/marsderp/piko/releases/download/v3.11.3/patches-3.11.3.mpp.asc",
-  "version": "3.11.3"
+  "created_at": "2026-10-15T14:56:17",
+  "description": "## [3.11.4](https://github.com/marsderp/piko/compare/v3.11.3...v3.11.4) (2026-10-15)\n\n### 🐛 Bug Fixes\n\n* **Instagram:** show the story download button when the story has no share button ([63aa544](https://github.com/marsderp/piko/commit/63aa544f6ac5b83de9647896428758e35707ba87))",
+  "download_url": "https://github.com/marsderp/piko/releases/download/v3.11.4/patches-3.11.4.mpp",
+  "signature_download_url": "https://github.com/marsderp/piko/releases/download/v3.11.4/patches-3.11.4.mpp.asc",
+  "version": "3.11.4"
 }

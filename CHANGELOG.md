@@ -1,3 +1,9 @@
+## [3.11.4](https://github.com/marsderp/piko/compare/v3.11.3...v3.11.4) (2026-10-15)
+
+### 🐛 Bug Fixes
+
+* **Instagram:** show the story download button when the story has no share button ([63aa544](https://github.com/marsderp/piko/commit/63aa544f6ac5b83de9647896428758e35707ba87))
+
 ## [3.11.3](https://github.com/marsderp/piko/compare/v3.11.2...v3.11.3) (2026-10-11)
 
 ### 🐛 Bug Fixes
