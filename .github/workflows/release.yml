@@ -56,3 +56,28 @@ jobs:
         with:
           subject-name: 'Piko Patches ${{ steps.release.outputs.new_release_git_tag }}'
           subject-path: patches/build/libs/patches-*.mpp
+
+      - name: Name release after its upstream base
+        if: steps.release.outputs.new_release_published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.new_release_git_tag }}
+        run: |
+          if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+            git fetch --unshallow --no-tags origin
+          fi
+          # Upstream tags go to their own namespace, as their names overlap this fork's tags.
+          git fetch --no-tags https://github.com/crimera/piko '+refs/tags/*:refs/upstream-tags/*'
+          base=""
+          for t in $(git for-each-ref --sort=-v:refname --format='%(refname:strip=2)' refs/upstream-tags \
+              | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'); do
+            if git merge-base --is-ancestor "refs/upstream-tags/$t^{commit}" "$TAG"; then
+              base="${t#v}"
+              break
+            fi
+          done
+          if [ -z "$base" ]; then
+            echo "No upstream piko release found in the history of $TAG"
+            exit 0
+          fi
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG (based on piko $base)"
