@@ -1,3 +1,9 @@
+## [3.11.5](https://github.com/marsderp/piko/compare/v3.11.4...v3.11.5) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* **Instagram:** one story download button, inline in the bottom bar ([328b4ba](https://github.com/marsderp/piko/commit/328b4ba3437954c08f630d52ae2e8d9e415ff3c7))
+
 ## [3.11.4](https://github.com/marsderp/piko/compare/v3.11.3...v3.11.4) (2026-10-15)
 
 ### 🐛 Bug Fixes

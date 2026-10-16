@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-15T14:56:17",
-  "description": "## [3.11.4](https://github.com/marsderp/piko/compare/v3.11.3...v3.11.4) (2026-10-15)\n\n### 🐛 Bug Fixes\n\n* **Instagram:** show the story download button when the story has no share button ([63aa544](https://github.com/marsderp/piko/commit/63aa544f6ac5b83de9647896428758e35707ba87))",
-  "download_url": "https://github.com/marsderp/piko/releases/download/v3.11.4/patches-3.11.4.mpp",
-  "signature_download_url": "https://github.com/marsderp/piko/releases/download/v3.11.4/patches-3.11.4.mpp.asc",
-  "version": "3.11.4"
+  "created_at": "2026-10-16T13:02:39",
+  "description": "## [3.11.5](https://github.com/marsderp/piko/compare/v3.11.4...v3.11.5) (2026-10-16)\n\n### 🐛 Bug Fixes\n\n* **Instagram:** one story download button, inline in the bottom bar ([328b4ba](https://github.com/marsderp/piko/commit/328b4ba3437954c08f630d52ae2e8d9e415ff3c7))",
+  "download_url": "https://github.com/marsderp/piko/releases/download/v3.11.5/patches-3.11.5.mpp",
+  "signature_download_url": "https://github.com/marsderp/piko/releases/download/v3.11.5/patches-3.11.5.mpp.asc",
+  "version": "3.11.5"
 }
