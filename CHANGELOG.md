@@ -1,3 +1,5 @@
+## [3.11.6](https://github.com/marsderp/piko/compare/v3.11.5...v3.11.6) (2026-10-16)
+
 ## [3.11.5](https://github.com/marsderp/piko/compare/v3.11.4...v3.11.5) (2026-10-16)
 
 ### 🐛 Bug Fixes
