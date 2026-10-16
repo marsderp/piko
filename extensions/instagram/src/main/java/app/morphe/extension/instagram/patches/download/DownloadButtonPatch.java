@@ -78,6 +78,9 @@ public class DownloadButtonPatch {
     // and are not views. Nothing can be inserted into it, so the button goes above like, in line with the column.
     private static final String REELS_COLUMN = "clips_ufi_component";
     private static final String REELS_LIKE = "like_button";
+    // The story bottom bar row (like, reshare, menu), which takes extra buttons like piko's own seen button.
+    private static final String STORY_ROW = "toolbar_buttons_container";
+    private static final String STORY_LIKE_CONTAINER = "toolbar_like_container";
 
     // Views of the feed row, used to tell its save button apart from the reels one.
     private static final String[] FEED_ROW_IDS = {
@@ -100,6 +103,8 @@ public class DownloadButtonPatch {
     private static Set<Integer> feedRowIds = Collections.emptySet();
     private static int reelsColumnId;
     private static int reelsLikeId;
+    private static int storyRowId;
+    private static int storyLikeContainerId;
 
     private static Class<?> mediaClass;
     private static Class<?> reelItemClass;
@@ -222,6 +227,9 @@ public class DownloadButtonPatch {
         reelsColumnId = getId(context, REELS_COLUMN);
         if (reelsColumnId != 0) RESOLVED_NAMES.add(REELS_COLUMN);
         reelsLikeId = getId(context, REELS_LIKE);
+        storyRowId = getId(context, STORY_ROW);
+        if (storyRowId != 0) RESOLVED_NAMES.add(STORY_ROW);
+        storyLikeContainerId = getId(context, STORY_LIKE_CONTAINER);
         fallbackIds = fallbacks;
         anchorIds = anchors;
 
@@ -238,6 +246,7 @@ public class DownloadButtonPatch {
         List<View> anchors = new ArrayList<>();
         List<View> fallbacks = new ArrayList<>();
         List<View> reelsLikes = new ArrayList<>();
+        List<ViewGroup> storyRows = new ArrayList<>();
         // Without the column id, the reels like button is found by its label on the right edge.
         View reelsLike = null;
         int rootWidth = root.getWidth();
@@ -251,7 +260,11 @@ public class DownloadButtonPatch {
 
             int id = view.getId();
             if (id != View.NO_ID) {
-                if (anchorIds.containsKey(id)) {
+                if (id == storyRowId && view instanceof ViewGroup) {
+                    storyRows.add((ViewGroup) view);
+                } else if (storyRowId != 0 && hasAncestor(view, storyRowId, 4)) {
+                    // Stories with the bar row get their button in the row below.
+                } else if (anchorIds.containsKey(id)) {
                     anchors.add(view);
                 } else if (fallbackIds.containsKey(id)) {
                     fallbacks.add(view);
@@ -277,6 +290,8 @@ public class DownloadButtonPatch {
             place(anchorIds.get(anchor.getId()), anchor, unitOf(anchor, null), Axis.HORIZONTAL);
         }
 
+        for (ViewGroup row : storyRows) placeStoryRow(row);
+
         // Counts change as feed rows are reused, so measure them again on every scan.
         for (Overlay overlay : OVERLAY_LIST) {
             View anchor = overlay.anchor.get();
@@ -293,20 +308,8 @@ public class DownloadButtonPatch {
             }
         }
 
-        boolean storyShare = false;
-        for (View anchor : anchors) {
-            // Only the story on screen, not the pages next to it.
-            if (anchorIds.get(anchor.getId()) == Surface.STORY && isFullyVisible(anchor)) storyShare = true;
-        }
-        if (storyShare) removeStoryLikeOverlays();
-
         for (View fallback : fallbacks) {
             Surface surface = fallbackIds.get(fallback.getId());
-            if (surface == Surface.STORY && !storyShare) {
-                // Stories that do not allow resharing have no share button, so the button goes above like.
-                placeStoryLike(fallback);
-                continue;
-            }
             ViewParent parent = fallback.getParent();
             if (!(parent instanceof ViewGroup)) continue;
             ViewGroup group = (ViewGroup) parent;
@@ -347,32 +350,48 @@ public class DownloadButtonPatch {
         }
     }
 
-    // Overlay mode, so the button is not clipped by the reply bar.
-    private static void placeStoryLike(View like) {
-        if (!isFullyVisible(like)) return;
+    // One button per story, in the bar row: after share, or after like when the story cannot be reshared.
+    private static void placeStoryRow(ViewGroup row) {
+        if (FAILED_ANCHORS.contains(row)) return;
+        View anchor = null;
+        for (String name : STORY_ANCHORS) {
+            int id = getId(row.getContext(), name);
+            View share = id == 0 ? null : row.findViewById(id);
+            if (share != null && share.getVisibility() == View.VISIBLE && share.getWidth() > 0) {
+                anchor = childToward(row, share);
+                break;
+            }
+        }
+        if (anchor == null && storyLikeContainerId != 0) {
+            View like = row.findViewById(storyLikeContainerId);
+            if (like != null && like.getVisibility() == View.VISIBLE) anchor = childToward(row, like);
+        }
+        if (anchor == null || anchor.getParent() != row || anchor.getHeight() <= 0) return;
+
+        // The row is reused for the next story, which may or may not have share, so keep the button after the anchor.
+        View existing = null;
+        for (int i = 0; i < row.getChildCount(); i++) {
+            if (BUTTON_TAG.equals(row.getChildAt(i).getTag())) existing = row.getChildAt(i);
+        }
+        if (existing != null) {
+            if (row.indexOfChild(existing) == row.indexOfChild(anchor) + 1) return;
+            row.removeView(existing);
+        }
+
         try {
-            if (OVERLAYS.containsKey(like) || FAILED_ANCHORS.contains(like)) return;
-            int size = Math.min(like.getWidth(), like.getHeight());
-            if (size <= 0) return;
-            ImageView button = createButton(like.getContext(), Surface.STORY, like);
-            addAsOverlay(button, Surface.STORY, like, Axis.HORIZONTAL, size, size);
+            int size = anchor.getHeight();
+            ViewGroup.LayoutParams params = copyLayoutParams(anchor.getLayoutParams());
+            if (params == null) params = new ViewGroup.LayoutParams(size, size);
+            params.width = size;
+            params.height = size;
+            if (params instanceof LinearLayout.LayoutParams) ((LinearLayout.LayoutParams) params).weight = 0;
+            ImageView button = createButton(row.getContext(), Surface.STORY, anchor);
+            button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            row.addView(button, row.indexOfChild(anchor) + 1, params);
         } catch (Exception e) {
-            FAILED_ANCHORS.add(like);
-            Logger.printInfo(() -> "DownloadButtonPatch story like place failure: " + e);
-            showDebugReport(like.getContext(), "Download button story place failure: " + e, e);
+            FAILED_ANCHORS.add(row);
+            reportFailure("story row", row, e);
         }
-    }
-
-    // A story with share is back on screen: drop the buttons placed above like for stories without it.
-    private static void removeStoryLikeOverlays() {
-        for (int i = OVERLAY_LIST.size() - 1; i >= 0; i--) {
-            Overlay overlay = OVERLAY_LIST.get(i);
-            if (overlay.surface == Surface.STORY && isStoryLike(overlay.anchor.get())) removeOverlay(overlay, i);
-        }
-    }
-
-    private static boolean isStoryLike(View view) {
-        return view != null && fallbackIds.get(view.getId()) == Surface.STORY;
     }
 
     private static boolean isReelsLike(View view) {
