@@ -735,7 +735,9 @@ public class DownloadUtils {
     /** Shared by the injected Litho component and the view holder hook. */
     public static boolean isFeedDownloadButtonEnabled() {
         return Boolean.TRUE.equals(SharedPref.getBooleanPref(Settings.ENABLE_DOWNLOAD))
-                && Boolean.TRUE.equals(SharedPref.getBooleanPref(Settings.FEED_DOWNLOAD_BUTTON));
+                && Boolean.TRUE.equals(SharedPref.getBooleanPref(Settings.FEED_DOWNLOAD_BUTTON))
+                // Fork: the one-tap Download button patch replaces this button while it is on.
+                && !Pref.downloadButton();
     }
 
     public static String feedDownloadButtonDescription() {
@@ -870,7 +872,9 @@ public class DownloadUtils {
             ViewGroup row = (ViewGroup) buttonsContainer;
             ImageView button = row.findViewWithTag(STORY_DOWNLOAD_BUTTON_TAG);
             if (media == null || !SettingsStatus.storyDownloadButton || !Pref.enableDownload()
-                    || !SharedPref.getBooleanPref(Settings.STORY_DOWNLOAD_BUTTON)) {
+                    || !SharedPref.getBooleanPref(Settings.STORY_DOWNLOAD_BUTTON)
+                    // Fork: the one-tap Download button patch replaces this button while it is on.
+                    || Pref.downloadButton()) {
                 if (button != null) row.removeView(button);
                 return;
             }

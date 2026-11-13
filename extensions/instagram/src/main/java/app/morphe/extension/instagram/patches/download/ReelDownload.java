@@ -60,7 +60,9 @@ public final class ReelDownload {
     public static boolean isEnabled() {
         return SettingsStatus.reelDownloadButton
                 && Boolean.TRUE.equals(SharedPref.getBooleanPref(Settings.ENABLE_DOWNLOAD))
-                && Boolean.TRUE.equals(SharedPref.getBooleanPref(Settings.REEL_DOWNLOAD_BUTTON));
+                && Boolean.TRUE.equals(SharedPref.getBooleanPref(Settings.REEL_DOWNLOAD_BUTTON))
+                // Fork: the one-tap Download button patch replaces this button while it is on.
+                && !app.morphe.extension.instagram.utils.Pref.downloadButton();
     }
 
     public static void register(Object component) {
