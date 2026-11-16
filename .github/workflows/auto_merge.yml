@@ -2,18 +2,28 @@ name: Auto-merge Claude PRs
 
 # Merges an open, ready (non-draft) PR from a claude/* branch of this repository
 # once "Test pull request" passes on its latest commit.
+#
+# Two triggers, because either can come last:
+# - "Test pull request" finishes on a PR that is already ready.
+# - A PR is marked ready after its tests already passed.
 on:
   workflow_run:
     workflows: ["Test pull request"]
     types: [completed]
+  pull_request:
+    types: [ready_for_review]
 
 jobs:
   merge:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request' &&
-      startsWith(github.event.workflow_run.head_branch, 'claude/') &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        startsWith(github.event.workflow_run.head_branch, 'claude/') &&
+        github.event.workflow_run.head_repository.full_name == github.repository) ||
+      (github.event_name == 'pull_request' &&
+        startsWith(github.event.pull_request.head.ref, 'claude/') &&
+        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - name: Merge pull request
@@ -21,9 +31,19 @@ jobs:
           # A personal token, so the merge push starts the Release workflow.
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           REPO: ${{ github.repository }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.event.workflow_run.head_branch || github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
         run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            # Marked ready: merge only if "Test pull request" already passed on this commit.
+            conclusion=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=Test%20pull%20request" \
+              --jq '[.check_runs[] | select(.status == "completed")] | sort_by(.completed_at) | last | .conclusion // ""')
+            if [ "$conclusion" != "success" ]; then
+              echo "Test pull request has not passed on $HEAD_SHA yet (${conclusion:-not finished}); the test run will merge it"
+              exit 0
+            fi
+          fi
           pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open \
             --json number,headRefOid,isDraft \
             --jq ".[] | select(.headRefOid == \"$HEAD_SHA\" and (.isDraft | not)) | .number")
